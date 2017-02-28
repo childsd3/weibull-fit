@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 import math
 import statistics
-import argparse
-
-parser = argparse.ArgumentParser(description='CNI Weibull Fitting Program')
-parser.add_argument('INPUT')
-parser.add_argument('ALPHA')
-parser.add_argument('-p','--plot', action='store_true', help='Use matplotlib to display results')
-parser.add_argument('-c','--csv', action='store_true', help='Export results as CSV')
+import glob
+import matplotlib.pyplot as plt
+import numpy as np
 
 def calculateXXSum (xList):
 	xxSum = 0
@@ -93,18 +89,43 @@ def calculateRegression (filename,alpha):
 	m = math.exp(beta*averageXPrime-averageYPrime)
 	weibullMean = calculateWeibullMean(alpha,beta,m)
 	weibullStandardDeviation = calculateWeibullStandardDeviation(alpha,beta,m)
-#	print('              alpha:  '+str(alpha))
-#	print('               beta:  '+str(beta))
-#	print('                  m:  '+str(m))
-#	print('               Mean:  '+str(weibullMean))
-#	print(' Standard Deviation:  '+str(weibullStandardDeviation))
-	return (alpha,beta,m,weibullMean,weibullStandardDeviation)
+	print('mean: '+str(weibullMean))
+	return {
+		'alpha': alpha,
+		'beta': beta,
+		'm': m,
+		'weibullMean': weibullMean,
+		'weibullStandardDeviation': weibullStandardDeviation,
+		'values': values
+	}
 
-calculateRegression(parser.parse_args().INPUT,float(parser.parse_args().ALPHA))
-
-if parser.parse_args().csv:
-	print(calculateRegression(parser.parse_args().INPUT,float(parser.parse_args().ALPHA)))
-
-#if parser.parse_args().plot:
-#	import matplotlib
-#	print('plot!')
+for item in glob.glob('*.dat'):
+	regression = calculateRegression(item,0)
+	print('******************************************************')
+	print('                  filename: '+item)
+	print('                     alpha: '+str(regression['alpha']))
+	print('                      beta: '+str(regression['beta']))
+	print('                         m: '+str(regression['m']))
+	print('              Weibull Mean: '+str(regression['weibullMean']))
+	print('Weibull Standard Deviation: '+str(regression['weibullStandardDeviation']))
+	print('******************************************************')
+#	hist, bin_edges = np.histogram(regression['values'], density=True, bins='auto')
+	def oneMinus (value):
+		return 1 - value
+	def weibullPlot (x,alpha,beta,m):
+		return math.exp(math.pow(x-alpha,beta)/(-m))
+	def negExpPlot (x,average):
+		return math.exp(-x/average)
+	oneMinus = np.vectorize(oneMinus)
+	weibullPlot = np.vectorize(weibullPlot)
+	negExpPlot = np.vectorize(negExpPlot)
+	regressionLength = len(regression['values'])+1
+	CDF = np.arange(1/regressionLength,1,1/regressionLength)
+	oneMinusValues = oneMinus(CDF)
+	weibullValues = weibullPlot(regression['values'], regression['alpha'], regression['beta'], regression['m'])
+	negExpValues = negExpPlot(regression['values'],np.average(regression['values']))
+	plt.plot(regression['values'],oneMinusValues, label='Measured')
+	plt.plot(regression['values'],weibullValues, label='Fit')
+	plt.plot(regression['values'],negExpValues, label='Negative Exponential')
+	plt.legend()
+	plt.show()
